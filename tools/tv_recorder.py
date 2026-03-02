@@ -7,21 +7,16 @@ TV_DIR = "tv_chunks"
 os.makedirs(TV_DIR, exist_ok=True)
 
 async def record_chunk(m3u8_url, duration_sec, filename):
-    """FFMPEG se Live stream ko native TS format mein record karta hai"""
-    # 🔥 FIX: Ab .mp4 ki jagah .ts mein save karenge (100% crash-proof)
     out_path = os.path.join(TV_DIR, f"{filename}.ts")
-    
     print(f"🎥 [TV RECORDER] Recording {filename} ({duration_sec}s)...")
     
     cmd = [
-        "ffmpeg", 
-        "-hide_banner", # Faltu info hide karega taaki error saaf dikhe
-        "-y", 
+        "ffmpeg", "-y", 
         "-headers", "Referer: https://aajtak.in/\r\n",
         "-user_agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0 Safari/537.36",
         "-i", m3u8_url,
         "-t", str(duration_sec),
-        "-c", "copy", # Pura video/audio EXACT wahi copy karega, no format conversion!
+        "-c", "copy",
         out_path
     ]
     
@@ -31,18 +26,20 @@ async def record_chunk(m3u8_url, duration_sec, filename):
         stderr=asyncio.subprocess.PIPE
     )
     
-    # Wait for FFMPEG to finish recording and capture output
     stdout, stderr = await process.communicate()
     
-    # Check agar file bani aur empty nahi hai
     if os.path.exists(out_path) and os.path.getsize(out_path) > 0:
         print(f"✅ [TV RECORDER] Ready: {out_path}")
         return out_path
     else:
-        # Ab asli error saaf-saaf dikhega
-        print(f"❌ [FFMPEG ERROR] File nahi bani! Reason:\n{stderr.decode()}")
+        # 🔥 FIX: Ab dono logs (Output aur Error) capture honge!
+        out_log = stdout.decode('utf-8', errors='ignore').strip()
+        err_log = stderr.decode('utf-8', errors='ignore').strip()
+        print(f"❌ [FFMPEG ERROR] Return Code: {process.returncode}")
+        if out_log: print(f"👉 STDOUT: {out_log[-1000:]}") 
+        if err_log: print(f"👉 STDERR: {err_log[-1000:]}")
         return None
-
+        
 
 async def continuous_tv_recorder(chat_id, m3u8_url, user_name):
     """Background loop jo har 5 minute mein chunk record karke queue me dalega"""
