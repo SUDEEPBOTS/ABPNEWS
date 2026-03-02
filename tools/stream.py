@@ -115,17 +115,33 @@ async def start_music_worker():
     except Exception as e:
         print(f"❌ Assistant Error: {e}")
 
-# --- 1. PLAY LOGIC (NO-CUTTING FIX) ---
+# --- 1. PLAY LOGIC (UPGRADED WITH FFMPEG BYPASS) ---
 async def play_stream(chat_id, file_path, title, duration, user, link, thumbnail):
     if not worker: return None, "Music System Error"
     
     safe_title = title
     safe_user = user
-    stream = AudioPiped(file_path, audio_parameters=HighQualityAudio())
+    
+    # 🔥 FFMPEG BYPASS AGENT ADDED FOR M3U8/PROXY LINKS
+    ffmpeg_params = ""
+    if isinstance(file_path, str) and ("m3u8" in file_path.lower() or "http" in file_path.lower()):
+        ffmpeg_params = (
+            "-timeout 10000000 "
+            "-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5 "
+            "-user_agent \"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36\" "
+            "-allowed_extensions ALL"
+        )
+        print(f"⚡ [STREAM] FFMPEG Agent applied for stream link.")
+
+    # Apply params to AudioPiped if they exist
+    stream = AudioPiped(
+        file_path, 
+        audio_parameters=HighQualityAudio(),
+        additional_ffmpeg_parameters=ffmpeg_params if ffmpeg_params else None
+    )
 
     try:
         # ✅ STEP 1: Pehle Database mein Queue update karo
-        # Ye zaroori hai taaki list maintain rahe
         position = await put_queue(chat_id, file_path, safe_title, duration, safe_user, link, thumbnail)
         
         # ✅ STEP 2: CHECK - KYA BOT ABHI VC MEIN HAI?
@@ -138,37 +154,26 @@ async def play_stream(chat_id, file_path, title, duration, user, link, thumbnail
         except: pass
 
         # === LOGIC TREE ===
-
-        # CASE A: Bot Active Hai + UI Message Maujood Hai (Matlab Gaana Baj Raha Hai)
         if is_active and chat_id in LAST_MSG_ID:
-            # Current gaana chalne do. Naye wale ko QUEUE mein rakho.
-            # Position return karo taaki user ko "Added to Queue" dikhe.
             return False, position
 
-        # CASE B: Bot Active Hai PAR Koi Message Nahi Hai (Idle Mode)
         elif is_active and chat_id not in LAST_MSG_ID:
             print(f"⚡ [IDLE PLAY] Bot is active but idle. Playing {safe_title}")
             try:
                 await worker.change_stream(int(chat_id), stream)
-                
-                # UI Update
                 song_data = {"title": safe_title, "duration": duration, "by": safe_user, "link": link, "thumbnail": thumbnail}
                 await send_now_playing(chat_id, song_data)
                 return True, 0
             except:
-                # Agar change fail ho jaye to Rejoin
                 try: await worker.leave_group_call(int(chat_id))
                 except: pass
                 await asyncio.sleep(0.5)
                 await worker.join_group_call(int(chat_id), stream)
-                
                 song_data = {"title": safe_title, "duration": duration, "by": safe_user, "link": link, "thumbnail": thumbnail}
                 await send_now_playing(chat_id, song_data)
                 return True, 0
 
-        # CASE C: Bot Active Hi Nahi Hai (First Song)
         else:
-            # Join and Play
             try: await worker.leave_group_call(int(chat_id))
             except: pass
             
@@ -176,7 +181,6 @@ async def play_stream(chat_id, file_path, title, duration, user, link, thumbnail
             await worker.join_group_call(int(chat_id), stream)
             await add_active_chat(chat_id)
             
-            # UI Update
             song_data = {"title": safe_title, "duration": duration, "by": safe_user, "link": link, "thumbnail": thumbnail}
             await send_now_playing(chat_id, song_data)
             
@@ -198,22 +202,32 @@ if worker:
             del LAST_MSG_ID[chat_id]
         
         await asyncio.sleep(1)
-        
-        # 1. Purana hatao
         await pop_queue(chat_id)
-        
-        # 2. Next Check
         queue = await get_queue(chat_id)
         
         if queue and len(queue) > 0:
             next_song = queue[0]
             print(f"🎵 Playing Next: {next_song['title']}")
             try:
-                stream = AudioPiped(next_song["file"], audio_parameters=HighQualityAudio())
+                # Re-apply FFMPEG params for next song if it's a stream
+                next_file = next_song["file"]
+                ffmpeg_params = ""
+                if isinstance(next_file, str) and ("m3u8" in next_file.lower() or "http" in next_file.lower()):
+                    ffmpeg_params = (
+                        "-timeout 10000000 -reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5 "
+                        "-user_agent \"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36\" "
+                        "-allowed_extensions ALL"
+                    )
+
+                stream = AudioPiped(
+                    next_file, 
+                    audio_parameters=HighQualityAudio(),
+                    additional_ffmpeg_parameters=ffmpeg_params if ffmpeg_params else None
+                )
+                
                 try:
                     await worker.change_stream(chat_id, stream)
                 except:
-                    # Rejoin Fallback
                     try: await worker.leave_group_call(chat_id)
                     except: pass
                     await asyncio.sleep(0.5)
@@ -242,7 +256,21 @@ async def skip_stream(chat_id):
     if queue and len(queue) > 0:
         next_song = queue[0]
         try:
-            stream = AudioPiped(next_song["file"], audio_parameters=HighQualityAudio())
+            # Re-apply FFMPEG params for skipped song if it's a stream
+            next_file = next_song["file"]
+            ffmpeg_params = ""
+            if isinstance(next_file, str) and ("m3u8" in next_file.lower() or "http" in next_file.lower()):
+                ffmpeg_params = (
+                    "-timeout 10000000 -reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5 "
+                    "-user_agent \"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36\" "
+                    "-allowed_extensions ALL"
+                )
+
+            stream = AudioPiped(
+                next_file, 
+                audio_parameters=HighQualityAudio(),
+                additional_ffmpeg_parameters=ffmpeg_params if ffmpeg_params else None
+            )
             await worker.change_stream(chat_id, stream)
             await send_now_playing(chat_id, next_song)
             return True 
@@ -280,4 +308,3 @@ async def get_current_playing(chat_id):
     queue = await get_queue(chat_id)
     if queue and len(queue) > 0: return queue[0]
     return None
-    
