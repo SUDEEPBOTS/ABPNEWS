@@ -1,6 +1,7 @@
 import asyncio
 import html
 import urllib.parse 
+import aiohttp # ✅ Naya import API call ke liye
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes, CommandHandler, CallbackQueryHandler
 from telegram.constants import ParseMode, ChatAction
@@ -15,11 +16,11 @@ from tools.stream import stop_stream, skip_stream, pause_stream, resume_stream, 
 from tools.stream import LAST_MSG_ID, QUEUE_MSG_ID
 from config import OWNER_NAME, ASSISTANT_ID, INSTAGRAM_LINK
 
-# ✅ NEW IMPORT: Database se status check karne ke liye
+# Database se status check karne ke liye
 from tools.database import get_music_status 
 
-# 🔥 NEW IMPORT: Auto-Chunk Downloader engine
-from tools.tv_recorder import record_chunk, continuous_tv_recorder
+# 🔥 TERA API LINK (Agar Cloudflare restart ho toh ye link change kar lena)
+API_URL = "https://helped-vegetables-implement-newbie.trycloudflare.com"
 
 # --- HELPER: PROGRESS BAR ---
 def get_progress_bar(duration):
@@ -36,13 +37,11 @@ async def play_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # 🔥🔥 1. GLOBAL MUSIC CHECK (SABSE PEHLE YAHAN AAYEGA) 🔥🔥
     is_active, reason = await get_music_status()
     if not is_active:
-        # Agar Reason hai to batao aur delete karo
         if reason:
             msg = await update.message.reply_text(f"🚧 **ᴍᴜsɪᴄ ɪs ᴏꜰꜰ!**\nReason: `{reason}`")
             await asyncio.sleep(4)
             await msg.delete()
             return
-        # Agar Reason nahi hai to chup chap return (Silent Mode)
         else:
             return 
     # 🔥🔥 CHECK END 🔥🔥
@@ -70,7 +69,6 @@ async def play_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # --- 🔥 ROBUST ASSISTANT JOIN LOGIC ---
     try:
-        # Step A: Check if Assistant is Banned
         try:
             assistant_member = await chat.get_member(int(ASSISTANT_ID))
             if assistant_member.status in ["kicked", "banned"]:
@@ -82,7 +80,6 @@ async def play_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 return
         except: pass
 
-        # Step B: Try to Join VC
         try:
             try:
                 invite_link = await context.bot.export_chat_invite_link(chat.id)
@@ -157,7 +154,7 @@ async def play_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except: pass
 
     # Caption Logic
-    if data["status"] is True: # Playing Now
+    if data["status"] is True: 
         if chat.id in LAST_MSG_ID:
             try: await context.bot.delete_message(chat.id, LAST_MSG_ID[chat.id])
             except: pass
@@ -175,7 +172,7 @@ async def play_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             LAST_MSG_ID[chat.id] = msg.message_id
         except: pass
 
-    else: # Added to Queue
+    else: 
         caption = f"""
 <blockquote><b>📝 ᴀᴅᴅᴇᴅ ᴛᴏ ǫᴜᴇᴜᴇ</b></blockquote>
 
@@ -233,7 +230,7 @@ async def stop_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try: await temp.delete()
     except: pass
 
-# 🔥🔥 --- ULTIMATE COMMAND: CUSTOM HLS BUFFERING --- 🔥🔥
+# 🔥🔥 --- THE API TV COMMAND --- 🔥🔥
 async def test_direct_tv(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat = update.effective_chat
     user = update.effective_user
@@ -243,49 +240,46 @@ async def test_direct_tv(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     status_msg = await context.bot.send_message(
         chat.id, 
-        "<blockquote>🔄 <b>[1/2] ᴄᴀᴘᴛᴜʀɪɴɢ ʟɪᴠᴇ sᴛʀᴇᴀᴍ... (Wᴀɪᴛ 30s)</b></blockquote>", 
+        "<blockquote>🔄 <b>[1/2] API sᴇ Lɪᴠᴇ TV ᴍᴀɴɢᴡᴀ ʀᴀʜᴀ ʜᴜ... (Wᴀɪᴛ 2s)</b></blockquote>", 
         parse_mode=ParseMode.HTML
     )
     
-    # 📺 Tera direct Aaj Tak link (Ab koi Heroku proxy ki zarurat nahi!)
-    stream_url = "https://aajtaklive-amd.akamaized.net/hls/live/2014416/aajtak/aajtaklive/live_360p/chunks.m3u8"
-    
     try:
-        # 1. Pehle fat-se 30 seconds ka chunk record kar lo taaki jaldi start ho
-        startup_file = await record_chunk(stream_url, 30, f"startup_{chat.id}")
-        
-        if not startup_file:
-            await status_msg.edit_text("<blockquote>❌ <b>Failed to capture startup chunk.</b></blockquote>", parse_mode=ParseMode.HTML)
-            return
+        # Bot API se bolega: "Bhai TV ki file de!"
+        async with aiohttp.ClientSession() as session:
+            async with session.get(f"{API_URL}/get_tv") as resp:
+                data = await resp.json()
+                
+        if data.get("status") == "success":
+            stream_url = data["url"]
+            await status_msg.edit_text("<blockquote>✅ <b>[2/2] Fɪʟᴇ Mɪʟ Gᴀʏɪ! VC ᴍᴇɪɴ Pʟᴀʏ ᴋᴀʀ ʀᴀʜᴀ ʜᴜ...</b></blockquote>", parse_mode=ParseMode.HTML)
             
-        await status_msg.edit_text("<blockquote>✅ <b>[2/2] sᴛᴀʀᴛᴜᴘ ʀᴇᴀᴅʏ! Pʟᴀʏɪɴɢ & Sᴛᴀʀᴛɪɴɢ Bᴀᴄᴋɢʀᴏᴜɴᴅ Lᴏᴏᴘ...</b></blockquote>", parse_mode=ParseMode.HTML)
-
-        # 2. Startup file ko VC mein bajana shuru kar do
-        status, position = await play_stream(
-            chat_id=chat.id,
-            file_path=startup_file, 
-            title="📺 Aaj Tak (Live Startup 30s)",
-            duration="00:30",
-            user=user.first_name,
-            link=stream_url,
-            thumbnail=None
-        )
-        
-        if status:
-            await status_msg.edit_text("<blockquote>✅ <b>ᴛᴠ sᴛʀᴇᴀᴍ sᴛᴀʀᴛᴇᴅ sᴜᴄᴄᴇssғᴜʟʟʏ!</b>\n\nVC check kar, background recorder on ho gaya hai!</blockquote>", parse_mode=ParseMode.HTML)
+            # Bot us file ko VC mein baja dega
+            status, position = await play_stream(
+                chat_id=chat.id, 
+                file_path=stream_url, 
+                title="📺 Aaj Tak (API Mode)", 
+                duration="Live API", 
+                user=user.first_name, 
+                link=API_URL, 
+                thumbnail=None
+            )
             
-            # 3. 🔥 MAIN MAGIC: Background mein 5-5 minute ke chunks record karke queue me dalna shuru karo
-            asyncio.create_task(continuous_tv_recorder(chat.id, stream_url, user.first_name))
-            
+            if status:
+                await status_msg.edit_text("<blockquote>✅ <b>API TV sᴛʀᴇᴀᴍ sᴛᴀʀᴛᴇᴅ!</b>\n\nAb ye khud Auto-Loop mein chalta rahega!</blockquote>", parse_mode=ParseMode.HTML)
+            else:
+                await status_msg.edit_text(f"<blockquote>❌ <b>Pʟᴀʏ Eʀʀᴏʀ:</b> {position}</blockquote>", parse_mode=ParseMode.HTML)
         else:
-            await status_msg.edit_text(f"<blockquote>❌ <b>ᴛᴇsᴛ ғᴀɪʟᴇᴅ:</b> <code>{position}</code></blockquote>", parse_mode=ParseMode.HTML)
+            await status_msg.edit_text(f"<blockquote>❌ <b>API Eʀʀᴏʀ:</b> {data.get('message')}</blockquote>", parse_mode=ParseMode.HTML)
             
     except Exception as e:
-        await status_msg.edit_text(f"<blockquote>❌ <b>ᴇʀʀᴏʀ :</b> <code>{e}</code></blockquote>", parse_mode=ParseMode.HTML)
+        await status_msg.edit_text(f"<blockquote>❌ <b>Bᴏᴛ Eʀʀᴏʀ:</b> <code>{e}</code></blockquote>", parse_mode=ParseMode.HTML)
+
 
 def register_handlers(app):
     app.add_handler(CommandHandler(["play", "p"], play_command))
     app.add_handler(CommandHandler(["stop", "end", "skip", "next", "pause", "resume"], stop_command))
-    app.add_handler(CommandHandler(["testtv"], test_direct_tv)) # ✅ REGISTERED THE RECORDER COMMAND
+    app.add_handler(CommandHandler(["testtv"], test_direct_tv)) # ✅ REGISTERED THE API COMMAND
     app.add_handler(CallbackQueryHandler(unban_cb, pattern="unban_assistant"))
-    print("  ✅ Music Module Loaded: Auto-Join & Anti-Ban & Auto-Chunk TV!")
+    print("  ✅ Music Module Loaded: Auto-Join & Anti-Ban & API Auto-Loop TV!")
+            
