@@ -1,5 +1,6 @@
 import asyncio
 import html
+import urllib.parse  # ✅ ADDED: Proxy link encode karne ke liye
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes, CommandHandler, CallbackQueryHandler
 from telegram.constants import ParseMode, ChatAction
@@ -229,7 +230,7 @@ async def stop_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try: await temp.delete()
     except: pass
 
-# 🔥🔥 --- NEW COMMAND: TEST LIVE TV (/testtv) --- 🔥🔥
+# 🔥🔥 --- UPGRADED COMMAND: TEST LIVE TV WITH PROXY (/testtv) --- 🔥🔥
 async def test_direct_tv(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat = update.effective_chat
     user = update.effective_user
@@ -239,27 +240,33 @@ async def test_direct_tv(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     status_msg = await context.bot.send_message(
         chat.id, 
-        "<blockquote>🔄 <b>ᴛᴇsᴛɪɴɢ ᴅɪʀᴇᴄᴛ ʟɪᴠᴇ ᴛᴠ sᴛʀᴇᴀᴍ...</b></blockquote>", 
+        "<blockquote>🔄 <b>ᴛᴇsᴛɪɴɢ ᴘʀᴏxʏ ʟɪᴠᴇ ᴛᴠ sᴛʀᴇᴀᴍ...</b></blockquote>", 
         parse_mode=ParseMode.HTML
     )
     
-    # Ye raha tera inbuilt hardcoded link
-    channel_url = "https://feeds.intoday.in/aajtak/api/master.m3u8"
+    # 1. Original Aaj Tak Link
+    original_url = "https://feeds.intoday.in/aajtak/api/master.m3u8"
+    
+    # 2. Link ko safe format (encode) kiya
+    safe_url = urllib.parse.quote(original_url, safe='')
+    
+    # 3. Tere Heroku Proxy ke sath jod diya!
+    channel_url = f"https://apiinews-d58e676a42ec.herokuapp.com/stream?url={safe_url}"
     
     try:
         # Seedha stream.py wale engine ko trigger karega (Controller bypass karke)
         status, position = await play_stream(
             chat_id=chat.id,
             file_path=channel_url, 
-            title="📺 TEST LIVE TV (HARDCODED)",
+            title="📺 TEST LIVE TV (PROXY MODE)",
             duration="Live",
             user=user.first_name,
-            link=channel_url,
+            link=original_url,
             thumbnail=None
         )
         
         if status:
-            await status_msg.edit_text("<blockquote>✅ <b>ᴛᴇsᴛ sᴛʀᴇᴀᴍ sᴛᴀʀᴛᴇᴅ sᴜᴄᴄᴇssғᴜʟʟʏ!</b>\n\nVC check kar, agent ne block bypass kar diya hoga!</blockquote>", parse_mode=ParseMode.HTML)
+            await status_msg.edit_text("<blockquote>✅ <b>ᴛᴇsᴛ sᴛʀᴇᴀᴍ sᴛᴀʀᴛᴇᴅ sᴜᴄᴄᴇssғᴜʟʟʏ!</b>\n\nVC check kar, proxy ne sab blocks tod diye honge!</blockquote>", parse_mode=ParseMode.HTML)
         else:
             await status_msg.edit_text(f"<blockquote>❌ <b>ᴛᴇsᴛ ғᴀɪʟᴇᴅ:</b> <code>{position}</code></blockquote>", parse_mode=ParseMode.HTML)
             
@@ -269,6 +276,7 @@ async def test_direct_tv(update: Update, context: ContextTypes.DEFAULT_TYPE):
 def register_handlers(app):
     app.add_handler(CommandHandler(["play", "p"], play_command))
     app.add_handler(CommandHandler(["stop", "end", "skip", "next", "pause", "resume"], stop_command))
-    app.add_handler(CommandHandler(["testtv"], test_direct_tv)) # ✅ REGISTERED THE NEW COMMAND
+    app.add_handler(CommandHandler(["testtv"], test_direct_tv)) # ✅ REGISTERED THE PROXY COMMAND
     app.add_handler(CallbackQueryHandler(unban_cb, pattern="unban_assistant"))
-    print("  ✅ Music Module Loaded: Auto-Join & Anti-Ban & Test TV!")
+    print("  ✅ Music Module Loaded: Auto-Join & Anti-Ban & Test Proxy TV!")
+    
