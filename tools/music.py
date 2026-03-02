@@ -10,7 +10,7 @@ from pyrogram.errors import InviteRequestSent, UserAlreadyParticipant, UserNotPa
 
 # Imports
 from tools.controller import process_stream
-from tools.stream import stop_stream, skip_stream, pause_stream, resume_stream, worker_app
+from tools.stream import stop_stream, skip_stream, pause_stream, resume_stream, worker_app, play_stream
 from tools.stream import LAST_MSG_ID, QUEUE_MSG_ID
 from config import OWNER_NAME, ASSISTANT_ID, INSTAGRAM_LINK
 
@@ -229,9 +229,46 @@ async def stop_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try: await temp.delete()
     except: pass
 
+# 🔥🔥 --- NEW COMMAND: TEST LIVE TV (/testtv) --- 🔥🔥
+async def test_direct_tv(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    chat = update.effective_chat
+    user = update.effective_user
+
+    try: await update.message.delete()
+    except: pass
+
+    status_msg = await context.bot.send_message(
+        chat.id, 
+        "<blockquote>🔄 <b>ᴛᴇsᴛɪɴɢ ᴅɪʀᴇᴄᴛ ʟɪᴠᴇ ᴛᴠ sᴛʀᴇᴀᴍ...</b></blockquote>", 
+        parse_mode=ParseMode.HTML
+    )
+    
+    # Ye raha tera inbuilt hardcoded link
+    channel_url = "https://feeds.intoday.in/aajtak/api/master.m3u8"
+    
+    try:
+        # Seedha stream.py wale engine ko trigger karega (Controller bypass karke)
+        status, position = await play_stream(
+            chat_id=chat.id,
+            file_path=channel_url, 
+            title="📺 TEST LIVE TV (HARDCODED)",
+            duration="Live",
+            user=user.first_name,
+            link=channel_url,
+            thumbnail=None
+        )
+        
+        if status:
+            await status_msg.edit_text("<blockquote>✅ <b>ᴛᴇsᴛ sᴛʀᴇᴀᴍ sᴛᴀʀᴛᴇᴅ sᴜᴄᴄᴇssғᴜʟʟʏ!</b>\n\nVC check kar, agent ne block bypass kar diya hoga!</blockquote>", parse_mode=ParseMode.HTML)
+        else:
+            await status_msg.edit_text(f"<blockquote>❌ <b>ᴛᴇsᴛ ғᴀɪʟᴇᴅ:</b> <code>{position}</code></blockquote>", parse_mode=ParseMode.HTML)
+            
+    except Exception as e:
+        await status_msg.edit_text(f"<blockquote>❌ <b>ᴇʀʀᴏʀ :</b> <code>{e}</code></blockquote>", parse_mode=ParseMode.HTML)
+
 def register_handlers(app):
     app.add_handler(CommandHandler(["play", "p"], play_command))
     app.add_handler(CommandHandler(["stop", "end", "skip", "next", "pause", "resume"], stop_command))
+    app.add_handler(CommandHandler(["testtv"], test_direct_tv)) # ✅ REGISTERED THE NEW COMMAND
     app.add_handler(CallbackQueryHandler(unban_cb, pattern="unban_assistant"))
-    print("  ✅ Music Module Loaded: Auto-Join & Anti-Ban!")
-
+    print("  ✅ Music Module Loaded: Auto-Join & Anti-Ban & Test TV!")
