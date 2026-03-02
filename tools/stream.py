@@ -124,14 +124,14 @@ async def play_stream(chat_id, file_path, title, duration, user, link, thumbnail
     # ==========================================
     if file_path == "test1":
         print("🧪 [TEST 1] Triggering Direct Akamai Link...")
-        file_path = "https://apache-handled-shirt-enquiries.trycloudflare.com/aajtak.ts"
+        file_path = "https://bag-marsh-length-eleven.trycloudflare.com/aajtak.ts"
         title = "🔴 Aaj Tak (Direct Akamai)"
         duration = "Live"
         link = "https://aajtak.in"
         
     elif file_path == "test2":
         print("🧪 [TEST 2] Triggering Proxy API Link...")
-        file_path = "https://apache-handled-shirt-enquiries.trycloudflare.com/aajtak.ts"
+        file_path = "https://bag-marsh-length-eleven.trycloudflare.com/aajtak.ts"
         title = "🔴 Aaj Tak (Proxy Bypass)"
         duration = "Live"
         link = "https://aajtak.in"
