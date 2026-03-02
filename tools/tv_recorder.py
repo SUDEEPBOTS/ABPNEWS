@@ -7,26 +7,24 @@ TV_DIR = "tv_chunks"
 os.makedirs(TV_DIR, exist_ok=True)
 
 async def record_chunk(m3u8_url, duration_sec, filename):
-    """FFMPEG se Live stream ko MP4 chunk mein record karta hai"""
-    out_path = os.path.join(TV_DIR, f"{filename}.mp4")
+    """FFMPEG se Live stream ko native TS format mein record karta hai"""
+    # 🔥 FIX: Ab .mp4 ki jagah .ts mein save karenge (100% crash-proof)
+    out_path = os.path.join(TV_DIR, f"{filename}.ts")
     
     print(f"🎥 [TV RECORDER] Recording {filename} ({duration_sec}s)...")
     
-    # 🔥 FIX: Added Referer header aur Audio Bitstream Filter (aac_adtstoasc)
     cmd = [
         "ffmpeg", 
+        "-hide_banner", # Faltu info hide karega taaki error saaf dikhe
         "-y", 
         "-headers", "Referer: https://aajtak.in/\r\n",
         "-user_agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0 Safari/537.36",
         "-i", m3u8_url,
         "-t", str(duration_sec),
-        "-c:v", "copy",
-        "-c:a", "copy",
-        "-bsf:a", "aac_adtstoasc", # Ye TS stream ko MP4 me properly fit karta hai
+        "-c", "copy", # Pura video/audio EXACT wahi copy karega, no format conversion!
         out_path
     ]
     
-    # DEVNULL hata diya taaki asli error Heroku logs mein dikhe!
     process = await asyncio.create_subprocess_exec(
         *cmd, 
         stdout=asyncio.subprocess.PIPE, 
@@ -41,6 +39,7 @@ async def record_chunk(m3u8_url, duration_sec, filename):
         print(f"✅ [TV RECORDER] Ready: {out_path}")
         return out_path
     else:
+        # Ab asli error saaf-saaf dikhega
         print(f"❌ [FFMPEG ERROR] File nahi bani! Reason:\n{stderr.decode()}")
         return None
 
