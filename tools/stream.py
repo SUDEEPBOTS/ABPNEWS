@@ -124,14 +124,14 @@ async def play_stream(chat_id, file_path, title, duration, user, link, thumbnail
     # ==========================================
     if file_path == "test1":
         print("🧪 [TEST 1] Triggering Direct Akamai Link...")
-        file_path = "https://aajtaklive-amd.akamaized.net/hls/live/2014416/aajtak/aajtaklive/live_360p/chunks.m3u8"
+        file_path = "https://apache-handled-shirt-enquiries.trycloudflare.com/aajtak"
         title = "🔴 Aaj Tak (Direct Akamai)"
         duration = "Live"
         link = "https://aajtak.in"
         
     elif file_path == "test2":
         print("🧪 [TEST 2] Triggering Proxy API Link...")
-        file_path = "https://apiinews-d58e676a42ec.herokuapp.com/stream?url=https%3A%2F%2Faajtaklive-amd.akamaized.net%2Fhls%2Flive%2F2014416%2Faajtak%2Faajtaklive%2Flive_360p%2Fchunks.m3u8"
+        file_path = "https://apache-handled-shirt-enquiries.trycloudflare.com/aajtak"
         title = "🔴 Aaj Tak (Proxy Bypass)"
         duration = "Live"
         link = "https://aajtak.in"
