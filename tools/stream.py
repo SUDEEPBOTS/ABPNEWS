@@ -122,20 +122,19 @@ async def play_stream(chat_id, file_path, title, duration, user, link, thumbnail
     safe_title = title
     safe_user = user
     
-    # 🔥 FFMPEG BYPASS AGENT & HEADERS FOR M3U8 LINKS 🔥
+    # 🔥 ULTIMATE FFMPEG BYPASS AGENT & HEADERS FOR M3U8 LINKS 🔥
     ffmpeg_params = ""
     is_live_tv = False
     
     if isinstance(file_path, str) and ("m3u8" in file_path.lower() or "http" in file_path.lower()):
         is_live_tv = True
         ffmpeg_params = (
-            "-headers \"Referer: https://aajtak.in/\\r\\n\" "
-            "-timeout 10000000 "
-            "-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5 "
+            "-headers \"Referer: https://aajtak.in/\\r\\nOrigin: https://aajtak.in/\\r\\n\" "
+            "-timeout 10000000 -reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5 "
             "-user_agent \"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36\" "
             "-allowed_extensions ALL"
         )
-        print(f"⚡ [STREAM] FFMPEG Agent applied for stream link.")
+        print(f"⚡ [STREAM] FFMPEG Anti-Freeze Agent applied for stream link.")
 
     # 🔴 Use AudioVideoPiped for Live TV, otherwise AudioPiped
     if is_live_tv:
@@ -228,7 +227,7 @@ if worker:
                 if isinstance(next_file, str) and ("m3u8" in next_file.lower() or "http" in next_file.lower()):
                     is_live_tv = True
                     ffmpeg_params = (
-                        "-headers \"Referer: https://aajtak.in/\\r\\n\" "
+                        "-headers \"Referer: https://aajtak.in/\\r\\nOrigin: https://aajtak.in/\\r\\n\" "
                         "-timeout 10000000 -reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5 "
                         "-user_agent \"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36\" "
                         "-allowed_extensions ALL"
@@ -286,7 +285,7 @@ async def skip_stream(chat_id):
             if isinstance(next_file, str) and ("m3u8" in next_file.lower() or "http" in next_file.lower()):
                 is_live_tv = True
                 ffmpeg_params = (
-                    "-headers \"Referer: https://aajtak.in/\\r\\n\" "
+                    "-headers \"Referer: https://aajtak.in/\\r\\nOrigin: https://aajtak.in/\\r\\n\" "
                     "-timeout 10000000 -reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5 "
                     "-user_agent \"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36\" "
                     "-allowed_extensions ALL"
