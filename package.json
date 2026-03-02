@@ -1,0 +1,7 @@
+{
+  "name": "pytgcalls-helper",
+  "version": "1.0.0",
+  "description": "Dummy file for Heroku Node buildpack",
+  "main": "index.js",
+  "license": "MIT"
+}
