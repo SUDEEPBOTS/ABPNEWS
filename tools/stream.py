@@ -1,30 +1,36 @@
 import asyncio
 import os
 import html 
-import aiohttp # ✅ Naya import API call ke liye
 from pytgcalls import PyTgCalls, idle
-from pytgcalls.types import AudioPiped, AudioVideoPiped, Update, HighQualityAudio, MediumQualityVideo
+from pytgcalls.types import AudioPiped, Update, HighQualityAudio 
 from telegram import Bot, InlineKeyboardMarkup, InlineKeyboardButton
 from telegram.constants import ParseMode
 from pyrogram import Client
 
+# Configs
 from config import API_ID, API_HASH, SESSION, BOT_TOKEN, OWNER_NAME, INSTAGRAM_LINK
 from tools.queue import put_queue, pop_queue, clear_queue, get_queue
 from tools.database import add_active_chat, remove_active_chat
 
+# --- GLOBAL DICTIONARIES ---
 LAST_MSG_ID = {}   
 QUEUE_MSG_ID = {}
-TV_CHATS = set() # ✅ Global TV Tracker
 
-API_URL = "https://helped-vegetables-implement-newbie.trycloudflare.com"
-
+# --- ⚠️ SAFE CLIENT SETUP ---
 print("🟡 [STREAM] Loading Music Module...")
+
 worker_app = None
 worker = None
 
 try:
     if SESSION:
-        worker_app = Client("MusicWorker", api_id=API_ID, api_hash=API_HASH, session_string=SESSION, in_memory=True)
+        worker_app = Client(
+            "MusicWorker",
+            api_id=API_ID,
+            api_hash=API_HASH,
+            session_string=SESSION,
+            in_memory=True,
+        )
         worker = PyTgCalls(worker_app)
         print("✅ [STREAM] Music Client Loaded Successfully!")
     else:
@@ -34,9 +40,11 @@ except Exception as e:
 
 main_bot = Bot(token=BOT_TOKEN)
 
+# --- HELPER: PROGRESS BAR ---
 def get_progress_bar(duration):
     return "◉————————————"
 
+# --- 🔥 HELPER: SAFE UI SENDER ---
 async def send_now_playing(chat_id, song_data):
     try:
         if chat_id in LAST_MSG_ID:
@@ -47,9 +55,11 @@ async def send_now_playing(chat_id, song_data):
         user = html.escape(str(song_data["by"]))
         duration = str(song_data["duration"])
         link = song_data["link"]
-        thumbnail = song_data.get("thumbnail")
+        thumbnail = song_data["thumbnail"]
 
-        display_title = title[:30] + "..." if len(title) > 30 else title
+        if len(title) > 30: display_title = title[:30] + "..."
+        else: display_title = title
+        
         bar_display = get_progress_bar(duration)
 
         buttons = [
@@ -69,15 +79,18 @@ async def send_now_playing(chat_id, song_data):
         
         caption = f"""
 <b>✅ sᴛᴀʀᴛᴇᴅ sᴛʀᴇᴀᴍɪɴɢ</b>
+
 <blockquote><b>🎸 ᴛɪᴛʟᴇ :</b> <a href="{link}">{display_title}</a>
 <b>⏳ ᴅᴜʀᴀᴛɪᴏɴ :</b> <code>{duration}</code>
 <b>👤 ʀᴇǫᴜᴇsᴛᴇᴅ ʙʏ :</b> {user}</blockquote>
+
 {bar_display}
+
 <blockquote><b>⚡ ᴘᴏᴡᴇʀᴇᴅ ʙʏ :</b> {OWNER_NAME}</blockquote>
 """
         msg = await main_bot.send_photo(
             chat_id,
-            photo=thumbnail if thumbnail else "https://telegra.ph/file/default_image.png",
+            photo=thumbnail,
             caption=caption,
             has_spoiler=True, 
             reply_markup=InlineKeyboardMarkup(buttons),
@@ -89,6 +102,7 @@ async def send_now_playing(chat_id, song_data):
         print(f"⚠️ [UI ERROR] Message nahi gaya: {e}")
         return False
 
+# --- 🔥 STARTUP LOGIC ---
 async def start_music_worker():
     print("🔵 Starting Music Assistant...")
     if not worker: return
@@ -101,21 +115,43 @@ async def start_music_worker():
     except Exception as e:
         print(f"❌ Assistant Error: {e}")
 
+# --- 1. PLAY LOGIC (UPDATED WITH HARDCODE TEST & BYPASS) ---
 async def play_stream(chat_id, file_path, title, duration, user, link, thumbnail):
     if not worker: return None, "Music System Error"
     
-    # ✅ Check if it's TV Mode
-    if "API Mode" in title:
-        TV_CHATS.add(chat_id)
-    else:
-        if chat_id in TV_CHATS:
-            TV_CHATS.remove(chat_id)
+    # ==========================================
+    # 🔥 HELLFIREDEVS HARDCODE TEST ZONE 🔥
+    # ==========================================
+    if file_path == "test1":
+        print("🧪 [TEST 1] Triggering Direct Akamai Link...")
+        file_path = "https://aajtaklive-amd.akamaized.net/hls/live/2014416/aajtak/aajtaklive/live_360p/chunks.m3u8"
+        title = "🔴 Aaj Tak (Direct Akamai)"
+        duration = "Live"
+        link = "https://aajtak.in"
+        
+    elif file_path == "test2":
+        print("🧪 [TEST 2] Triggering Proxy API Link...")
+        file_path = "https://apiinews-d58e676a42ec.herokuapp.com/stream?url=https%3A%2F%2Faajtaklive-amd.akamaized.net%2Fhls%2Flive%2F2014416%2Faajtak%2Faajtaklive%2Flive_360p%2Fchunks.m3u8"
+        title = "🔴 Aaj Tak (Proxy Bypass)"
+        duration = "Live"
+        link = "https://aajtak.in"
+    # ==========================================
 
-    stream = AudioVideoPiped(file_path, audio_parameters=HighQualityAudio(), video_parameters=MediumQualityVideo())
+    safe_title = title
+    safe_user = user
+    
+    # 🔥 FFmpeg Akamai Bypass Headers Injected Here
+    stream = AudioPiped(
+        file_path, 
+        audio_parameters=HighQualityAudio(),
+        additional_ffmpeg_parameters="-headers 'Referer: https://aajtak.in/\r\nOrigin: https://aajtak.in/\r\n' -user_agent 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0 Safari/537.36'"
+    )
 
     try:
-        position = await put_queue(chat_id, file_path, title, duration, user, link, thumbnail)
+        # ✅ STEP 1: Pehle Database mein Queue update karo
+        position = await put_queue(chat_id, file_path, safe_title, duration, safe_user, link, thumbnail)
         
+        # ✅ STEP 2: CHECK - KYA BOT ABHI VC MEIN HAI?
         is_active = False
         try:
             for call in worker.active_calls:
@@ -124,94 +160,113 @@ async def play_stream(chat_id, file_path, title, duration, user, link, thumbnail
                     break
         except: pass
 
+        # === LOGIC TREE ===
+
         if is_active and chat_id in LAST_MSG_ID:
             return False, position
 
         elif is_active and chat_id not in LAST_MSG_ID:
+            print(f"⚡ [IDLE PLAY] Bot is active but idle. Playing {safe_title}")
             try:
                 await worker.change_stream(int(chat_id), stream)
+                
+                song_data = {"title": safe_title, "duration": duration, "by": safe_user, "link": link, "thumbnail": thumbnail}
+                await send_now_playing(chat_id, song_data)
+                return True, 0
             except:
                 try: await worker.leave_group_call(int(chat_id))
                 except: pass
                 await asyncio.sleep(0.5)
                 await worker.join_group_call(int(chat_id), stream)
+                
+                song_data = {"title": safe_title, "duration": duration, "by": safe_user, "link": link, "thumbnail": thumbnail}
+                await send_now_playing(chat_id, song_data)
+                return True, 0
+
         else:
             try: await worker.leave_group_call(int(chat_id))
             except: pass
+            
             await asyncio.sleep(0.5)
             await worker.join_group_call(int(chat_id), stream)
             await add_active_chat(chat_id)
             
-        song_data = {"title": title, "duration": duration, "by": user, "link": link, "thumbnail": thumbnail}
-        await send_now_playing(chat_id, song_data)
-        return True, 0
+            song_data = {"title": safe_title, "duration": duration, "by": safe_user, "link": link, "thumbnail": thumbnail}
+            await send_now_playing(chat_id, song_data)
+            
+            return True, 0
+
     except Exception as e:
+        print(f"❌ [PYTGCALLS ERROR] {e}")
         return None, str(e)
 
+# --- 2. STREAM END HANDLER ---
 if worker:
     @worker.on_stream_end()
     async def stream_end_handler(client, update: Update):
         chat_id = update.chat_id
+        print(f"🔄 Stream Ended in {chat_id}")
+        
+        if chat_id in LAST_MSG_ID:
+            try: await main_bot.delete_message(chat_id, LAST_MSG_ID[chat_id])
+            except: pass 
+            del LAST_MSG_ID[chat_id]
         
         await asyncio.sleep(1)
+        
+        # 1. Purana hatao
         await pop_queue(chat_id)
+        
+        # 2. Next Check
         queue = await get_queue(chat_id)
         
         if queue and len(queue) > 0:
-            if chat_id in LAST_MSG_ID:
-                try: await main_bot.delete_message(chat_id, LAST_MSG_ID[chat_id])
-                except: pass 
-                del LAST_MSG_ID[chat_id]
-
             next_song = queue[0]
-            stream = AudioVideoPiped(next_song["file"], audio_parameters=HighQualityAudio(), video_parameters=MediumQualityVideo())
+            print(f"🎵 Playing Next: {next_song['title']}")
             try:
-                await worker.change_stream(chat_id, stream)
-            except:
-                try: await worker.leave_group_call(chat_id)
-                except: pass
-                await asyncio.sleep(0.5)
-                await worker.join_group_call(chat_id, stream)
-            await send_now_playing(chat_id, next_song)
-        else:
-            # 🔥 THE API AUTO-LOOP MAGIC 🔥
-            if chat_id in TV_CHATS:
-                print(f"🔄 [BOT] TV File khatam! API se dusri mangwa raha hu... Chat: {chat_id}")
+                # 🔥 Added Bypass Headers here too for queue compatibility
+                stream = AudioPiped(
+                    next_song["file"], 
+                    audio_parameters=HighQualityAudio(),
+                    additional_ffmpeg_parameters="-headers 'Referer: https://aajtak.in/\r\nOrigin: https://aajtak.in/\r\n' -user_agent 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0 Safari/537.36'"
+                )
                 try:
-                    async with aiohttp.ClientSession() as session:
-                        async with session.get(f"{API_URL}/get_tv") as resp:
-                            data = await resp.json()
-                            
-                    if data.get("status") == "success":
-                        stream_url = data["url"]
-                        stream = AudioVideoPiped(stream_url, audio_parameters=HighQualityAudio(), video_parameters=MediumQualityVideo())
-                        await worker.change_stream(chat_id, stream)
-                        print("✅ [BOT] Nayi TV file chalu!")
-                        return # Loop zinda rahega!
-                except Exception as e:
-                    print(f"❌ Next TV fetch fail: {e}")
-            
-            # Agar TV_CHATS mein nahi hai ya API fail ho gayi
-            if chat_id in LAST_MSG_ID:
-                try: await main_bot.delete_message(chat_id, LAST_MSG_ID[chat_id])
-                except: pass 
-                del LAST_MSG_ID[chat_id]
+                    await worker.change_stream(chat_id, stream)
+                except:
+                    try: await worker.leave_group_call(chat_id)
+                    except: pass
+                    await asyncio.sleep(0.5)
+                    await worker.join_group_call(chat_id, stream)
+                
+                await send_now_playing(chat_id, next_song)
+            except Exception as e:
+                print(f"❌ Auto-Play Error: {e}")
+                await stop_stream(chat_id)
+        else:
             print(f"✅ Queue Empty for {chat_id}, Leaving VC.")
             await stop_stream(chat_id)
 
+# --- 3. CONTROLS ---
 async def skip_stream(chat_id):
     if not worker: return False
+    
     if chat_id in LAST_MSG_ID:
         try: await main_bot.delete_message(chat_id, LAST_MSG_ID[chat_id])
         except: pass
         if chat_id in LAST_MSG_ID: del LAST_MSG_ID[chat_id]
 
     await pop_queue(chat_id)
+    
     queue = await get_queue(chat_id)
     if queue and len(queue) > 0:
         next_song = queue[0]
         try:
-            stream = AudioVideoPiped(next_song["file"], audio_parameters=HighQualityAudio(), video_parameters=MediumQualityVideo())
+            # 🔥 Added Bypass Headers here too
+            stream = AudioPiped(
+                next_song["file"], 
+                audio_parameters=HighQualityAudio(),
+                additional_ffmpeg_parameters="-headers 'Referer: https://aajtak.in/\r\nOrigin: https://aajtak.in/\r\n' -user_agent 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0 Safari/537.36'"
+            )
             await worker.change_stream(chat_id, stream)
             await send_now_playing(chat_id, next_song)
             return True 
@@ -225,9 +280,6 @@ async def skip_stream(chat_id):
 async def stop_stream(chat_id):
     if not worker: return False
     try:
-        if chat_id in TV_CHATS:
-            TV_CHATS.remove(chat_id)
-            
         await worker.leave_group_call(int(chat_id))
         await remove_active_chat(chat_id)
         await clear_queue(chat_id)
