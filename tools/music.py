@@ -1,6 +1,6 @@
 import asyncio
 import html
-import urllib.parse  # ✅ ADDED: Proxy link encode karne ke liye
+import urllib.parse 
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes, CommandHandler, CallbackQueryHandler
 from telegram.constants import ParseMode, ChatAction
@@ -17,6 +17,9 @@ from config import OWNER_NAME, ASSISTANT_ID, INSTAGRAM_LINK
 
 # ✅ NEW IMPORT: Database se status check karne ke liye
 from tools.database import get_music_status 
+
+# 🔥 NEW IMPORT: Auto-Chunk Downloader engine
+from tools.tv_recorder import record_chunk, continuous_tv_recorder
 
 # --- HELPER: PROGRESS BAR ---
 def get_progress_bar(duration):
@@ -230,7 +233,7 @@ async def stop_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try: await temp.delete()
     except: pass
 
-# 🔥🔥 --- UPGRADED COMMAND: TEST LIVE TV WITH PROXY (/testtv) --- 🔥🔥
+# 🔥🔥 --- ULTIMATE COMMAND: CUSTOM HLS BUFFERING --- 🔥🔥
 async def test_direct_tv(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat = update.effective_chat
     user = update.effective_user
@@ -240,33 +243,40 @@ async def test_direct_tv(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     status_msg = await context.bot.send_message(
         chat.id, 
-        "<blockquote>🔄 <b>ᴛᴇsᴛɪɴɢ ᴘʀᴏxʏ ʟɪᴠᴇ ᴛᴠ sᴛʀᴇᴀᴍ...</b></blockquote>", 
+        "<blockquote>🔄 <b>[1/2] ᴄᴀᴘᴛᴜʀɪɴɢ ʟɪᴠᴇ sᴛʀᴇᴀᴍ... (Wᴀɪᴛ 30s)</b></blockquote>", 
         parse_mode=ParseMode.HTML
     )
     
-    # 1. Original Aaj Tak Link
-    original_url = "https://aajtaklive-amd.akamaized.net/hls/live/2014416/aajtak/aajtaklive/live_360p/chunks.m3u8"
-    
-    # 2. Link ko safe format (encode) kiya
-    safe_url = urllib.parse.quote(original_url, safe='')
-    
-    # 3. Tere Heroku Proxy ke sath jod diya!
-    channel_url = f"https://apiinews-d58e676a42ec.herokuapp.com/stream?url={safe_url}"
+    # 📺 Tera direct Aaj Tak link (Ab koi Heroku proxy ki zarurat nahi!)
+    stream_url = "https://aajtaklive-amd.akamaized.net/hls/live/2014416/aajtak/aajtaklive/live_360p/chunks.m3u8"
     
     try:
-        # Seedha stream.py wale engine ko trigger karega (Controller bypass karke)
+        # 1. Pehle fat-se 30 seconds ka chunk record kar lo taaki jaldi start ho
+        startup_file = await record_chunk(stream_url, 30, f"startup_{chat.id}")
+        
+        if not startup_file:
+            await status_msg.edit_text("<blockquote>❌ <b>Failed to capture startup chunk.</b></blockquote>", parse_mode=ParseMode.HTML)
+            return
+            
+        await status_msg.edit_text("<blockquote>✅ <b>[2/2] sᴛᴀʀᴛᴜᴘ ʀᴇᴀᴅʏ! Pʟᴀʏɪɴɢ & Sᴛᴀʀᴛɪɴɢ Bᴀᴄᴋɢʀᴏᴜɴᴅ Lᴏᴏᴘ...</b></blockquote>", parse_mode=ParseMode.HTML)
+
+        # 2. Startup file ko VC mein bajana shuru kar do
         status, position = await play_stream(
             chat_id=chat.id,
-            file_path=channel_url, 
-            title="📺 TEST LIVE TV (PROXY MODE)",
-            duration="Live",
+            file_path=startup_file, 
+            title="📺 Aaj Tak (Live Startup 30s)",
+            duration="00:30",
             user=user.first_name,
-            link=original_url,
+            link=stream_url,
             thumbnail=None
         )
         
         if status:
-            await status_msg.edit_text("<blockquote>✅ <b>ᴛᴇsᴛ sᴛʀᴇᴀᴍ sᴛᴀʀᴛᴇᴅ sᴜᴄᴄᴇssғᴜʟʟʏ!</b>\n\nVC check kar, proxy ne sab blocks tod diye honge!</blockquote>", parse_mode=ParseMode.HTML)
+            await status_msg.edit_text("<blockquote>✅ <b>ᴛᴠ sᴛʀᴇᴀᴍ sᴛᴀʀᴛᴇᴅ sᴜᴄᴄᴇssғᴜʟʟʏ!</b>\n\nVC check kar, background recorder on ho gaya hai!</blockquote>", parse_mode=ParseMode.HTML)
+            
+            # 3. 🔥 MAIN MAGIC: Background mein 5-5 minute ke chunks record karke queue me dalna shuru karo
+            asyncio.create_task(continuous_tv_recorder(chat.id, stream_url, user.first_name))
+            
         else:
             await status_msg.edit_text(f"<blockquote>❌ <b>ᴛᴇsᴛ ғᴀɪʟᴇᴅ:</b> <code>{position}</code></blockquote>", parse_mode=ParseMode.HTML)
             
@@ -276,7 +286,6 @@ async def test_direct_tv(update: Update, context: ContextTypes.DEFAULT_TYPE):
 def register_handlers(app):
     app.add_handler(CommandHandler(["play", "p"], play_command))
     app.add_handler(CommandHandler(["stop", "end", "skip", "next", "pause", "resume"], stop_command))
-    app.add_handler(CommandHandler(["testtv"], test_direct_tv)) # ✅ REGISTERED THE PROXY COMMAND
+    app.add_handler(CommandHandler(["testtv"], test_direct_tv)) # ✅ REGISTERED THE RECORDER COMMAND
     app.add_handler(CallbackQueryHandler(unban_cb, pattern="unban_assistant"))
-    print("  ✅ Music Module Loaded: Auto-Join & Anti-Ban & Test Proxy TV!")
-    
+    print("  ✅ Music Module Loaded: Auto-Join & Anti-Ban & Auto-Chunk TV!")
