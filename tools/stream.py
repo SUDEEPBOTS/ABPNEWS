@@ -2,7 +2,7 @@ import asyncio
 import os
 import html 
 from pytgcalls import PyTgCalls, idle
-from pytgcalls.types import AudioPiped, Update, HighQualityAudio 
+from pytgcalls.types import AudioPiped, AudioVideoPiped, Update, HighQualityAudio, MediumQualityVideo
 from telegram import Bot, InlineKeyboardMarkup, InlineKeyboardButton
 from telegram.constants import ParseMode
 from pyrogram import Client
@@ -122,10 +122,14 @@ async def play_stream(chat_id, file_path, title, duration, user, link, thumbnail
     safe_title = title
     safe_user = user
     
-    # 🔥 FFMPEG BYPASS AGENT ADDED FOR M3U8/PROXY LINKS
+    # 🔥 FFMPEG BYPASS AGENT & HEADERS FOR M3U8 LINKS 🔥
     ffmpeg_params = ""
+    is_live_tv = False
+    
     if isinstance(file_path, str) and ("m3u8" in file_path.lower() or "http" in file_path.lower()):
+        is_live_tv = True
         ffmpeg_params = (
+            "-headers \"Referer: https://aajtak.in/\\r\\n\" "
             "-timeout 10000000 "
             "-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5 "
             "-user_agent \"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36\" "
@@ -133,12 +137,20 @@ async def play_stream(chat_id, file_path, title, duration, user, link, thumbnail
         )
         print(f"⚡ [STREAM] FFMPEG Agent applied for stream link.")
 
-    # Apply params to AudioPiped if they exist
-    stream = AudioPiped(
-        file_path, 
-        audio_parameters=HighQualityAudio(),
-        additional_ffmpeg_parameters=ffmpeg_params if ffmpeg_params else None
-    )
+    # 🔴 Use AudioVideoPiped for Live TV, otherwise AudioPiped
+    if is_live_tv:
+        stream = AudioVideoPiped(
+            file_path, 
+            audio_parameters=HighQualityAudio(),
+            video_parameters=MediumQualityVideo(),
+            additional_ffmpeg_parameters=ffmpeg_params if ffmpeg_params else None
+        )
+    else:
+        stream = AudioPiped(
+            file_path, 
+            audio_parameters=HighQualityAudio(),
+            additional_ffmpeg_parameters=ffmpeg_params if ffmpeg_params else None
+        )
 
     try:
         # ✅ STEP 1: Pehle Database mein Queue update karo
@@ -209,21 +221,32 @@ if worker:
             next_song = queue[0]
             print(f"🎵 Playing Next: {next_song['title']}")
             try:
-                # Re-apply FFMPEG params for next song if it's a stream
                 next_file = next_song["file"]
                 ffmpeg_params = ""
+                is_live_tv = False
+                
                 if isinstance(next_file, str) and ("m3u8" in next_file.lower() or "http" in next_file.lower()):
+                    is_live_tv = True
                     ffmpeg_params = (
+                        "-headers \"Referer: https://aajtak.in/\\r\\n\" "
                         "-timeout 10000000 -reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5 "
                         "-user_agent \"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36\" "
                         "-allowed_extensions ALL"
                     )
 
-                stream = AudioPiped(
-                    next_file, 
-                    audio_parameters=HighQualityAudio(),
-                    additional_ffmpeg_parameters=ffmpeg_params if ffmpeg_params else None
-                )
+                if is_live_tv:
+                    stream = AudioVideoPiped(
+                        next_file, 
+                        audio_parameters=HighQualityAudio(),
+                        video_parameters=MediumQualityVideo(),
+                        additional_ffmpeg_parameters=ffmpeg_params if ffmpeg_params else None
+                    )
+                else:
+                    stream = AudioPiped(
+                        next_file, 
+                        audio_parameters=HighQualityAudio(),
+                        additional_ffmpeg_parameters=ffmpeg_params if ffmpeg_params else None
+                    )
                 
                 try:
                     await worker.change_stream(chat_id, stream)
@@ -256,21 +279,33 @@ async def skip_stream(chat_id):
     if queue and len(queue) > 0:
         next_song = queue[0]
         try:
-            # Re-apply FFMPEG params for skipped song if it's a stream
             next_file = next_song["file"]
             ffmpeg_params = ""
+            is_live_tv = False
+            
             if isinstance(next_file, str) and ("m3u8" in next_file.lower() or "http" in next_file.lower()):
+                is_live_tv = True
                 ffmpeg_params = (
+                    "-headers \"Referer: https://aajtak.in/\\r\\n\" "
                     "-timeout 10000000 -reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5 "
                     "-user_agent \"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36\" "
                     "-allowed_extensions ALL"
                 )
 
-            stream = AudioPiped(
-                next_file, 
-                audio_parameters=HighQualityAudio(),
-                additional_ffmpeg_parameters=ffmpeg_params if ffmpeg_params else None
-            )
+            if is_live_tv:
+                stream = AudioVideoPiped(
+                    next_file, 
+                    audio_parameters=HighQualityAudio(),
+                    video_parameters=MediumQualityVideo(),
+                    additional_ffmpeg_parameters=ffmpeg_params if ffmpeg_params else None
+                )
+            else:
+                stream = AudioPiped(
+                    next_file, 
+                    audio_parameters=HighQualityAudio(),
+                    additional_ffmpeg_parameters=ffmpeg_params if ffmpeg_params else None
+                )
+                
             await worker.change_stream(chat_id, stream)
             await send_now_playing(chat_id, next_song)
             return True 
@@ -308,3 +343,4 @@ async def get_current_playing(chat_id):
     queue = await get_queue(chat_id)
     if queue and len(queue) > 0: return queue[0]
     return None
+    
