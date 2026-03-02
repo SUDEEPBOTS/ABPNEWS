@@ -12,31 +12,37 @@ async def record_chunk(m3u8_url, duration_sec, filename):
     
     print(f"🎥 [TV RECORDER] Recording {filename} ({duration_sec}s)...")
     
-    # FFMPEG command (bina conversion ke direct copy taaki fast ho)
+    # 🔥 FIX: Added Referer header aur Audio Bitstream Filter (aac_adtstoasc)
     cmd = [
         "ffmpeg", 
-        "-y", # Overwrite if exists
+        "-y", 
+        "-headers", "Referer: https://aajtak.in/\r\n",
         "-user_agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0 Safari/537.36",
         "-i", m3u8_url,
         "-t", str(duration_sec),
         "-c:v", "copy",
         "-c:a", "copy",
+        "-bsf:a", "aac_adtstoasc", # Ye TS stream ko MP4 me properly fit karta hai
         out_path
     ]
     
+    # DEVNULL hata diya taaki asli error Heroku logs mein dikhe!
     process = await asyncio.create_subprocess_exec(
         *cmd, 
-        stdout=asyncio.subprocess.DEVNULL, 
-        stderr=asyncio.subprocess.DEVNULL
+        stdout=asyncio.subprocess.PIPE, 
+        stderr=asyncio.subprocess.PIPE
     )
     
-    # Wait for FFMPEG to finish recording
-    await process.wait()
+    # Wait for FFMPEG to finish recording and capture output
+    stdout, stderr = await process.communicate()
     
-    if os.path.exists(out_path):
+    # Check agar file bani aur empty nahi hai
+    if os.path.exists(out_path) and os.path.getsize(out_path) > 0:
         print(f"✅ [TV RECORDER] Ready: {out_path}")
         return out_path
-    return None
+    else:
+        print(f"❌ [FFMPEG ERROR] File nahi bani! Reason:\n{stderr.decode()}")
+        return None
 
 
 async def continuous_tv_recorder(chat_id, m3u8_url, user_name):
@@ -68,8 +74,6 @@ async def continuous_tv_recorder(chat_id, m3u8_url, user_name):
             segment_count += 1
             toggle = 1 if toggle == 0 else 0 # Flip A to B, B to A
         else:
-            print("❌ [TV RECORDER] Stream record fail hui. Retrying...")
+            print("❌ [TV RECORDER] Stream record fail hui. Retrying in 5s...")
             await asyncio.sleep(5)
             
-        # Jab tak ye loop record karega (5 min lagte hain live stream save hone mein), 
-        # tab tak pichla chunk VC mein properly chal raha hoga!
