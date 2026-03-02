@@ -245,7 +245,7 @@ async def test_direct_tv(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
     
     # 1. Original Aaj Tak Link
-    original_url = "https://feeds.intoday.in/aajtak/api/master.m3u8"
+    original_url = "https://aajtaklive-amd.akamaized.net/hls/live/2014416/aajtak/aajtaklive/live_360p/chunks.m3u8"
     
     # 2. Link ko safe format (encode) kiya
     safe_url = urllib.parse.quote(original_url, safe='')
